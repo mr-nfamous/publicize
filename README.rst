@@ -17,6 +17,12 @@ Installation
 Functions
 =========
 
+- ``import_as_copy(mod_or_name:[str, object]) -> module:``
+    Import a shallow copy of `mod_or_name`
+
+- ``import_from_object(obj, overwrite=False) -> dict``
+    Pretends `obj` is a module and imports its public attributes
+
 - ``public(*objects:[str, object], overwrite=False) -> objects[0]``
     Mark objects (or names) as public and automatically append them to ``__all__``.
     Can be used as a decorator with or without closing parentheses.
@@ -53,17 +59,22 @@ Functions
 -  ``safe_star_import(module) -> {**imported}:``
     ``from module import *`` that will not overwrite existing names
 
--  ``star_import(module:[str, ModuleType], overwrite=False, ignore_private=False, ignore_metadata=True) -> {**imported}:``
+-  ``star_import(module:[str, ModuleType], overwrite=False, module=False, prefix=None, ignore_private=False, import_metadata=False) -> [dict, {**imported}]:``
     Ignore default ``* import`` mechanics to import almost everything.
 
+    If ``prefix`` is True, it will be prepended to imported names.
+    
     If ``overwrite`` is False, an error is raised instead of overwriting.
 
     If ``ignore_private`` is True then _private names prepended with an
     underscore are ignored.
 
-    If ``ignore_metadata`` is False, then module metadata attributes such as
+    If ``import_metadata`` is True, then module metadata attributes such as
     ``__author__`` and ``__version__`` are imported.
 
+    If ``module`` is True, return the module itself, otherwise a dict
+    mapping of imported:object names.
+    
     Special attributes of modules such as ``__path__``, ``__file__``, and
     ``__all__`` are never imported.
 
@@ -81,12 +92,17 @@ Example usage
         RED = red = 'red'
         BLUE = blue = 'blue'
         GREEN = green = 'green'
+    COLOR_LIST = [*Colors]
     COLOR_DICT=public_constants(**Colors.__members__)
     CHARTREUSE = GREEN
     CYAN = BLUE
     CARMINE = RED
     public(CHARTREUSE, CYAN, CARMINE)
+    random = star_import('random', prefix='random_', module=True)
 
+    def random_color():
+        return random_choice(COLOR_LIST)
+    
     def _get_valid_colors():
         return {k for k, v in globals().items() if isinstance(v, Colors)}
 
@@ -115,6 +131,10 @@ Example usage
 ``>>> reimport_module('colors').CARMINE is not old``
 
 ``True``
+
+``>>> random_color()``
+
+``<Colors.BLUE: 'blue'>``
 
 ``>>> _get_colors()``
 
