@@ -15,7 +15,7 @@
     useless to try and have the results of these functions store
     the results in a function's local scope because to access them
     you'd have to do stuff like:
-    
+
         >>> 'star_import('math')
         >>> return vars()['pi']
 
@@ -35,7 +35,7 @@ import_from_object(obj, overwrite=False) -> dict
     `Pretends `ob` is a module and imports its public attributes
 
     This was inspired by random.py. Rather than hand typing out
-    every single method, just use this.    
+    every single method, just use this.
 
 -------
 @public(*objects:[str, object], overwrite=False) -> objects[0]:
@@ -78,11 +78,11 @@ reimport_module(module) -> module:
 ---------------
 
     Clear a Python module's dict and reimport it.
-    
+
     -> (1.5):
 
         * It actually works now.
-        
+
 ----------------
 safe_star_import(module) -> {**imported}
 ----------------
@@ -96,11 +96,11 @@ star_import(module_or_name,
             prefix=None,
             ignore_private=False,
             import_metadata=False) -> {**imported}:
-            
+
     Ignore default * import mechanics to import almost everything.
 
     -> (1.5):
-    
+
         * replaced `ignore_metadata` (which defaulted to True( with
         import_metadata=False
 
@@ -156,7 +156,7 @@ _STAR_IMPORT_IGNORE = frozenset((
     '__getattr__', # for 3.7
     '__dir__', # for 3.7
     ))
-        
+
 _RIMP_IGNORE = _STAR_IMPORT_IGNORE - frozenset((
     '__doc__',
     '__all__'))
@@ -197,7 +197,7 @@ def typed_consts(tp, **consts):
             e = TypeError(m % (ob_name, tp_name, er_name))
             raise e
         ns[ob_name] = ob
-        
+
 # C macros :)
 OB_NAME    = attrgetter('__name__')
 F_CO_NAME  = attrgetter('f_code.co_name')
@@ -337,7 +337,7 @@ class NOTHING(object):
 
     def __truth_impl__(self):
         return False
-    
+
     def __repr__(self):
         return 'NOTHING'
 
@@ -445,19 +445,19 @@ class ptr(ptr_base):
             self(ob)
             return self
         return w
-    
+
     def safe_binop(f):
         import operator
         frame = sys._getframe(1)
         name = "__%s__" % f.strip('_')
         func = getattr(operator, f)
         check = ptr_base.__instancecheck__
-        
+
         def impl(self, other):
             if check(other):
                 other = other._base
             return func(self._base, other)
-        
+
         frame.f_locals[name] = impl
         _set_name(impl, name)
 
@@ -735,7 +735,7 @@ def get_module2(ob, m_name=None, m_file=None, m_type=None):
     assert m_name() == module.__name__
     if not sys.modules.get(m_name(module.__name__)):
         raise SystemError("coudn't find '%s' in sys.modules"%m_name())
-    file = ptr(getattr(module, '__file__', NOTHING)) 
+    file = ptr(getattr(module, '__file__', NOTHING))
     if file() is NOTHING or clean_fp(m_file[...](file()))==EXT_MODULE:
         m_type(EXT_MODULE)
     else:
@@ -1031,20 +1031,20 @@ def star_import(mod_or_name, **kws):
 
     If a `prefix` is provided, it will be prepended to the imported
     names.
-    
+
     If `ignore_private` is set to True, _sunder (private) names will
     not be imported.
 
     Items in `ignore_list` will not be imported.
 
     If `import_metadata` is True, even module metadata is imported.
-    
+
     Names that already exist in the calling module's namespace will
     be overwritten if `overwrite` is set to True, otherwise an error
     will be raised.
 
     If `module` is True, returns module instead of dict.
-    
+
     Certain dunder names required by the import machinery are never
     imported. These include __name__, __file__, and __loader__,
     among others (see publicize._STAR_IMPORT_IGNORE for a full list).
@@ -1073,7 +1073,7 @@ def star_import(mod_or_name, **kws):
         9
 
     """
-    
+
     module = validate_module(mod_or_name)
 
     imp_meta  = kws.pop('import_metadata', False)
@@ -1083,7 +1083,7 @@ def star_import(mod_or_name, **kws):
     r_module  = kws.pop('module', False)
     prefix    = kws.pop('prefix', '')
     _validate_kws(kws)
-    
+
     import_list = true_star_imports(module, ig_priv, ig_list, imp_meta)
     rename_list = {}
     for name in import_list:
@@ -1097,12 +1097,12 @@ def star_import(mod_or_name, **kws):
                  "overwrite the special module name: '%s'") % args
             raise TypeError(m)
         rename_list[name] = pname
-        
+
     caller = _get_calling_module()
     with Scope(caller) as context, Scope(module) as imported_context:
 
         imported = {k:imported_context[k] for k in import_list}
-        
+
         if not overwrite:
             for name in import_list & context.keys():
                 old, new = context[name], imported_context[name]
@@ -1119,7 +1119,7 @@ def star_import(mod_or_name, **kws):
                 raise error
             else:
                 import_list -= context.keys()
-                
+
         imported = {v:imported[k] for k, v in dict_items(rename_list)}
         context.namespace.update(imported)
     return module if r_module else imported
@@ -1209,7 +1209,7 @@ def reimport_module(ob, local=True):
     allocated any changes made directly to the objects will be reflected
     globally.
     """
-    
+
     if 1:
         m_name, m_type, m_name, m_file = (ptr*4)()
         module = get_module2(ob, m_name, m_file, m_type)
@@ -1240,7 +1240,7 @@ def reimport_module(ob, local=True):
         m_dict.clear()
         m_dict.update(r_dict)
         result = module
-        
+
     return result
 
 PROFILES = {}
@@ -1275,13 +1275,13 @@ def import_as_copy(module_or_name, **kws):
     module = get_module2(module_or_name, m_name, m_file, m_type)
     result = ModuleType(m_name())
     D(result).update(D(module))
-    
+
     with Scope(_get_calling_module()) as context:
         if m_name() in context and not overwrite:
             x, y = context.module_name, m_name()
             raise NameError('module %s already exists in %s'%(y, x))
         context[m_name()] = result
-        
+
     return result
 
 @public
