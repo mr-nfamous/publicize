@@ -1,11 +1,15 @@
 =========
 Publicize
 =========
-Set of utilities to manage the way a module is exported
+Set of utilities to help manage how modules are imported or exported
 
-Detailed error messages make finding any issues easy.
+Works with both of the current major CPython versions, 2.7 and 3.7.
 
-Works in both Python 2.7 and 3.6
+Detailed error messages make finding name conflicts easy.
+
+Significantly reduce boilerplate, especially using ``star_export``, ``star_import``, ``public_constants``, and ``import_from_object``.
+
+Simplifies dynamically reloading modules when source code has changed but restarting the interpreter is impossible or undesirable
 
 ============
 Installation
@@ -29,17 +33,14 @@ Functions
 
     There are 2 different ways to use it\:
         
-        ``@public(overwrite=False) <- (with or without parentheses)``
-
-            Simple decorator for functions/classes. Adds the wrapped object's
+        - ``@public(overwrite=False) <- (with or without parentheses)``
+            Simple decorator for functions/classes. Adds the wrapped object's  
             ``__name__`` attribute to ``__all__``
 
-        ``public(name_or_object, *names_or_objects)``
-
+        - ``public(name_or_object, *names_or_objects)``
             If an object is passed as an argument, all names that refer to that
-            object will be added to ``__all__``. If a string is passed, the
-            name will be added assuming the reference actually exists.
-
+            object will be added to ``__all__``. If a string is passed, the name 
+            will be added assuming the reference actually exists.
             
 -  ``public constants(**constants) -> constants:``
     Define public global variables, adding their names to ``__all__``.
@@ -59,7 +60,10 @@ Functions
 -  ``safe_star_import(module) -> {**imported}:``
     ``from module import *`` that will not overwrite existing names
 
--  ``star_import(module:[str, ModuleType], overwrite=False, module=False, prefix=None, ignore_private=False, import_metadata=False) -> [dict, {**imported}]:``
+-  ``star_export(*private_modules, ignore_list=None, export_private=True, export_metadata=False, caller=None):``
+    Force `exporter` (caller by default) to export almost everything
+    
+-  ``star_import(module:[str, ModuleType], overwrite=False, module=False, prefix=None, id_mod=None, ignore_private=False, import_metadata=False) -> [dict, {**imported}]:``
     Ignore default ``* import`` mechanics to import almost everything.
 
     If ``prefix`` is True, it will be prepended to imported names.

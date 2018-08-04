@@ -1,20 +1,22 @@
 
-"""Set of utilities to ease the importing and exporting of modules
+"""Set of utilities to help manage how modules are imported or exported
 
-    * Detailed error messages make finding name conflicts easy
+    * Works for both current major Python versions, 2.7 and 3.7.
+    
+    * Detailed error messages make finding name conflicts easy.
 
-    * Significantly reduce boilerplate, especially with `star_import`
-    and `import_from_object`
+    * Significantly reduce boilerplate, especially using `star_export`,
+    `star_import`, `public_constants`, and `import_from_object`.
 
     * Simplifies dynamically reloading modules when source code has
     changed but restarting the interpreter is impossible or undesirable
 
     * NOTE: Whoever calls the functions here (the caller) does not
     matter, only the caller's module. Since referencing objects
-    by an identifier only works at the module scope, it would be
-    useless to try and have the results of these functions store
-    the results in a function's local scope because to access them
-    you'd have to do stuff like:
+    by identifier in source code only works at the module scope, it
+    would be useless to try and have the results of these functions
+    store  the results in a function's local scope, because to access
+    them  you'd have to do stuff like:
 
         >>> 'star_import('math')
         >>> return vars()['pi']
@@ -90,15 +92,32 @@ safe_star_import(module) -> {**imported}
     `from module import *` that will not overwrite existing names
 
 -----------
+star_export(*private_mdoules,
+----------- ignore_list=None,
+            export_private=True,
+            export_metadata=False,
+            exporter=None)
+
+    ** NEW in 1.6
+    
+    Force `exporter` (caller by default) to export almost everything
+    
+-----------
 star_import(module_or_name,
 ----------- overwrite=False,
             module=False,
-            prefix=None,
+            prefix='',
+            id_mod=None,
             ignore_private=False,
             import_metadata=False) -> {**imported}:
 
     Ignore default * import mechanics to import almost everything.
 
+    -> (1.6):
+
+        * Added the `id_mod` parameter which allows more complex
+        identifier modification through the use of a callable.
+        
     -> (1.5):
 
         * replaced `ignore_metadata` (which defaulted to True( with
@@ -124,7 +143,7 @@ reverse_star_import(module, ignore=set())
 from __future__ import print_function, with_statement, unicode_literals
 
 __author__ = 'Dan Snider'
-__version__ = '1.5.0'
+__version__ = '1.6.0'
 
 import copy
 import functools
@@ -135,13 +154,15 @@ import sys
 import __main__
 import time
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from types import ModuleType, FunctionType
 from operator import attrgetter, itemgetter, methodcaller
 
+mgroup = defaultdict(set)
 PYTHON3 = sys.version_info > (3, 2)
 PYTHON2 = not PYTHON3
-
+PDEBUG = False
+_EMPTYSET = frozenset()
 _STAR_IMPORT_IGNORE = frozenset((
     '__cached__',
     '__doc__',
@@ -552,6 +573,9 @@ class Scope(object):
     def __delitem__(self, key):
         del self._module.__dict__[key]
 
+    def preview_all(self, elems):
+        return sorted(self._all + list(elems))
+
     @_check_modifiable
     def extend_all(self, elems):
         missing = set(elems) - dict_keys(self._module.__dict__)
@@ -560,6 +584,7 @@ class Scope(object):
             raise NameError('names %s do not exist in %s'%args)
         if self._all is None:
             self._all = []
+        
         self._all.extend(elems)
 
     @_check_modifiable
@@ -936,7 +961,7 @@ def safe_repr(obj, maxlen=50):
 
 def _get_calling_module(depth=0, *args, **kws):
     """Get the module that invoked a function"""
-    return _find_module(_get_frame(2+depth).f_globals.get('__name__'))
+    return _find_module(_get_frame(2+depth+PDEBUG).f_globals.get('__name__'))
 
 def _validate_kws(kws):
     for kw in kws:
@@ -1026,12 +1051,139 @@ def safe_star_import(module):
     return imported
 
 @public
+def star_export(*private_modules, **kws):
+    """Force `exporter` (caller by default) to export almost everything
+
+    This function is purely additive to __all__. Any of the filters
+    here do NOT apply to names that have already been added to __all__.
+    Any objects originating from a module that's been flagged in
+    `private_modules` will not be added to the export list. As noted
+    above, however, if they already exist in __all__ they are still
+    exported as usual.
+
+    If `export_private` is set to False, _sunder (private) names will
+    not be exported.
+
+    Any items in `ignore_list` will not be exported.
+
+    If `export_metadata` is True, even module metadata is exported.
+
+    If an `exporter` is not provided, the caller's namespace is used
+    by default default. Providing an `exporter` argument allows
+    dynamic modification of any arbitrary module's __all__ at runtime.
+    
+    This is almost similar to `export_module` except the former actually
+    merges the exported module's namespace with the caller's, as well
+    as enforcing the default star import mechanics, meaning _sunder
+    names are never imported or exported, whereas with star_export,
+    nothing is imported and private/_sunder names are entirely optional.
+
+    More on *`private_modules`:
+
+    Even having wrote publicize, I find it impossible to articulate its
+    usefulness in dramatically reducing errors and boilerplate, which
+    leads to even fewer errors. The only way I can is with an example.
+
+    Some projects have a set of utility functions that are used by
+    many modules that themselves probably have other modules in common.
+    In the example below 3 utility functions commonly used are defined.
+    If they have uncommonly used dependencies those are ignored but the
+    common ones are made available for import from a single location.
+    
+    /mytoolz.py
+    
+        from publicize import *
+
+        def _col_mod(name):
+            return f'_{name.lower()}'
+
+        itertools   = star_import('itertools', prefix='it_', module=True)
+        functools   = star_import('functools', prefix='ft_', module=True)
+        operator    = star_import('operator',  prefix='op_', module=True)
+        collections = star_import('collections', id_mod=_col_mod)
+
+        public_constants(odict=_ordereddict, ddict=_defaultdict)
+
+        def tail(n, it):
+            return iter(_deque(it, maxlen=n))
+
+        def dot_product(v1, v2):
+            return sum(map(op_mul, v1, v2))
+
+        def deep_getattr(ob, *attrs, **kws):
+            try:
+                return ft_reduce(getattr, attrs, ob)
+            except AttributeError as er:
+                error = er
+            result = kws.get(default, error)
+            if result is error:
+                raise error
+            return result
+
+        star_export('publicize', 'functools', export_private=False)
+
+    ----------
+
+    After this, mytoolz.py exports tail, dot_product, and deep_getattr
+    along with the contents of the operator module (prefixed with "op_"),
+    the contents of itertools (prefixed with "it_"), as well as the
+    operator, collections, and itertools modules themselves.
+
+    The star imported names from publicize and functools are not
+    exported because of their inclusion in `private_modules`, and
+    _col_mod isn't due to `ignore_private` being True.
+
+    A totally useless example but if in the real world five modules
+    needed a combination of one of those utility functions and access
+    to operator or itertools, 20 to 100+ lines can be omitted.
+    
+    """
+    
+    ignore_list     = kws.pop('ignore_list', _EMPTYSET)
+    ignore_private  = not kws.pop('export_private', True) # note the `NOT`
+    export_metadata = kws.pop('export_metadata', False)
+    caller          = kws.pop('exporter', None)
+    _validate_kws(kws)
+
+    if exporter is None:
+        caller = _get_calling_module()
+    else:
+        exporter = validate_module(caller)
+        
+    args = ignore_private, ignore_list, export_metadata
+    export_list = true_star_imports(caller, *args)
+        
+    with Scope(caller) as context:
+        
+        if private_modules:
+            contents = defaultdict(set)
+            for name in export_list:
+                contents[id(context[name])].add(name)
+            imported = dict_keys(contents)
+
+        for module in map(validate_module, private_modules):
+            exported = frozenset(map(id, dict_values(module.__dict__)))
+            common = set()
+            update_common = common.update
+            for ob_id in (imported & exported):
+                update_common(contents[ob_id])
+            export_list -= common
+            export_list -= contents.get(id(module), _EMPTYSET)
+            
+        context.extend_all(export_list)
+            
+@public
 def star_import(mod_or_name, **kws):
     """Ignores default * import mechanics to import almost everything
 
     If a `prefix` is provided, it will be prepended to the imported
     names.
 
+    Alternatively, a callable (as `id_mod`) may be provided which
+    will be mapped to the imported identifiers. If `prefix` and
+    `id_mod` exist simultaneously, `star_import` does nothing with it
+    other than pass it to the `id_mod` callable as its second argument.
+    
     If `ignore_private` is set to True, _sunder (private) names will
     not be imported.
 
@@ -1080,6 +1232,7 @@ def star_import(mod_or_name, **kws):
     ig_priv   = kws.pop('ignore_private', False)
     ig_list   = kws.pop('ignore_list', False) or set()
     overwrite = kws.pop('overwrite', False)
+    id_mod    = kws.pop('id_mod', lambda identifier: identifier)
     r_module  = kws.pop('module', False)
     prefix    = kws.pop('prefix', '')
     _validate_kws(kws)
@@ -1087,10 +1240,11 @@ def star_import(mod_or_name, **kws):
     import_list = true_star_imports(module, ig_priv, ig_list, imp_meta)
     rename_list = {}
     for name in import_list:
+        pname = id_mod(name)
         if not prefix:
-            rename_list[name] = name
+            rename_list[name] = pname
             continue
-        pname = '%s%s'%(prefix, name)
+        pname = '%s%s'%(prefix, pname)
         if pname in _STAR_IMPORT_IGNORE:
             args = name, prefix, pname
             m = ("imported name '%s' using the prefix '%s' will '"
