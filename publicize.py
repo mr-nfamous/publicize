@@ -945,8 +945,7 @@ def hex_id(obj, nibs=((sys.maxsize.bit_length()+7)//8) * 2):
     return '0x{:0{nibs}X}'.format(id(obj), nibs=nibs)
 
 def generic_repr(obj):
-    ob_type = type(ob)
-    objtype = 'class' if type(obj) is type else OB_NAME(ob_type)
+    objtype = 'class' if type(obj) is type else OB_NAME(type(obj))
     try:
         return '<%s %s at %s>' % (objtype, get_full_name(obj), hex_id(obj))
     except:
